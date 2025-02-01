@@ -1,96 +1,90 @@
--- Load UI Library
-local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
-local Window = OrionLib:MakeWindow({
-    Name = "Aimbot Pro v1.0",
-    HidePremium = false,
-    IntroEnabled = false,
-    SaveConfig = false
-})
+-- Load Kavo UI Library
+local success, KavoUI = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+end)
+
+if not success then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Error",
+        Text = "Failed to load Kavo UI!",
+        Duration = 5
+    })
+    return
+end
+
+local Window = KavoUI.CreateLib("Aimbot Pro v2.0", "BloodTheme")
 
 -- Configuration
 local Settings = {
-    AimbotEnabled = false,
-    TargetType = "Mobs", -- Mobs or Players
-    AimPart = "Head", -- Head, HumanoidRootPart, etc.
-    Smoothness = 50, -- Aimbot smoothness (higher = smoother)
-    FOV = 100, -- Field of View for targeting
-    TeamCheck = true -- Ignore teammates
+    Aimbot = false,
+    TargetType = "Mobs",
+    AimPart = "HumanoidRootPart",
+    Smoothness = 1.5,
+    FOV = 250,
+    TeamCheck = true,
+    DrawFOV = false
 }
 
 -- UI Setup
-local MainTab = Window:MakeTab({
-    Name = "Aimbot Settings",
-    Icon = "rbxassetid://4483345998"
-})
+local MainTab = Window:NewTab("Main")
+local AimbotSection = MainTab:NewSection("Aimbot Settings")
 
--- Toggle Aimbot
-MainTab:AddToggle({
-    Name = "Enable Aimbot",
-    Default = false,
-    Callback = function(State)
-        Settings.AimbotEnabled = State
-    end
-})
+-- Aimbot Toggle
+AimbotSection:NewToggle("Enable Aimbot", "Lock onto targets", function(State)
+    Settings.Aimbot = State
+end)
 
 -- Target Type Selector
-MainTab:AddDropdown({
-    Name = "Target Type",
-    Default = Settings.TargetType,
-    Options = {"Mobs", "Players"},
-    Callback = function(Value)
-        Settings.TargetType = Value
-    end
-})
+AimbotSection:NewDropdown("Target Type", "Choose what to target", {"Mobs", "Players"}, function(Value)
+    Settings.TargetType = Value
+end)
 
 -- Aim Part Selector
-MainTab:AddDropdown({
-    Name = "Aim Part",
-    Default = Settings.AimPart,
-    Options = {"Head", "HumanoidRootPart"},
-    Callback = function(Value)
-        Settings.AimPart = Value
-    end
-})
+AimbotSection:NewDropdown("Aim Part", "Select target body part", {"Head", "HumanoidRootPart"}, function(Value)
+    Settings.AimPart = Value
+end)
 
--- Smoothness Slider
-MainTab:AddSlider({
-    Name = "Smoothness",
-    Min = 1,
-    Max = 100,
-    Default = Settings.Smoothness,
-    Callback = function(Value)
-        Settings.Smoothness = Value
-    end
-})
+-- Sliders
+AimbotSection:NewSlider("Smoothness", "Aim smoothness", 100, 1, function(Value)
+    Settings.Smoothness = Value / 20
+end)
 
--- FOV Slider
-MainTab:AddSlider({
-    Name = "FOV",
-    Min = 50,
-    Max = 500,
-    Default = Settings.FOV,
-    Callback = function(Value)
-        Settings.FOV = Value
-    end
-})
+AimbotSection:NewSlider("FOV", "Targeting radius", 500, 50, function(Value)
+    Settings.FOV = Value
+end)
 
--- Team Check Toggle
-MainTab:AddToggle({
-    Name = "Ignore Teammates",
-    Default = true,
-    Callback = function(State)
-        Settings.TeamCheck = State
+-- Team Check
+AimbotSection:NewToggle("Team Check", "Ignore teammates", function(State)
+    Settings.TeamCheck = State
+end)
+
+-- FOV Circle Visualization
+local FOVCircle
+AimbotSection:NewToggle("Show FOV", "Display targeting area", function(State)
+    Settings.DrawFOV = State
+    if State then
+        FOVCircle = Drawing.new("Circle")
+        FOVCircle.Visible = true
+        FOVCircle.Radius = Settings.FOV
+        FOVCircle.Color = Color3.new(1, 1, 1)
+        FOVCircle.Thickness = 2
+        FOVCircle.Position = workspace.CurrentCamera.ViewportSize / 2
+    else
+        if FOVCircle then
+            FOVCircle:Remove()
+            FOVCircle = nil
+        end
     end
-})
+end)
 
 -- Aimbot Logic
 local function GetClosestTarget()
     local closestTarget = nil
     local closestDistance = Settings.FOV
     local LocalPlayer = game.Players.LocalPlayer
-    local LocalCharacter = LocalPlayer.Character
-    local LocalRoot = LocalCharacter and LocalCharacter:FindFirstChild("HumanoidRootPart")
-
+    local LocalChar = LocalPlayer.Character
+    local LocalRoot = LocalChar and LocalChar:FindFirstChild("HumanoidRootPart")
+    
     if not LocalRoot then return nil end
 
     -- Target Mobs
@@ -112,15 +106,17 @@ local function GetClosestTarget()
     -- Target Players
     if Settings.TargetType == "Players" then
         for _, player in pairs(game.Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                if Settings.TeamCheck and player.Team == LocalPlayer.Team then
-                    continue
-                end
-                local playerRoot = player.Character.HumanoidRootPart
-                local distance = (LocalRoot.Position - playerRoot.Position).Magnitude
-                if distance < closestDistance then
-                    closestTarget = playerRoot
-                    closestDistance = distance
+            if player ~= LocalPlayer and player.Character then
+                local playerTeam = player.Team
+                if Settings.TeamCheck and playerTeam == LocalPlayer.Team then continue end
+                
+                local playerRoot = player.Character:FindFirstChild("HumanoidRootPart")
+                if playerRoot then
+                    local distance = (LocalRoot.Position - playerRoot.Position).Magnitude
+                    if distance < closestDistance then
+                        closestTarget = playerRoot
+                        closestDistance = distance
+                    end
                 end
             end
         end
@@ -131,24 +127,25 @@ end
 
 -- Aimbot Execution
 game:GetService("RunService").RenderStepped:Connect(function()
-    if Settings.AimbotEnabled then
+    if Settings.Aimbot then
         local target = GetClosestTarget()
-        if target then
-            local LocalPlayer = game.Players.LocalPlayer
-            local LocalCharacter = LocalPlayer.Character
-            local LocalRoot = LocalCharacter and LocalCharacter:FindFirstChild("HumanoidRootPart")
+        if target and target.Parent:FindFirstChild("Humanoid") then
             local Camera = workspace.CurrentCamera
-
-            if LocalRoot and Camera then
-                local targetPosition = target.Position
-                local cameraPosition = Camera.CFrame.Position
-                local direction = (targetPosition - cameraPosition).Unit
-                local smoothness = Settings.Smoothness / 100
-
-                Camera.CFrame = CFrame.new(cameraPosition, cameraPosition + (direction * smoothness))
-            end
+            local LocalMouse = game.Players.LocalPlayer:GetMouse()
+            
+            -- Calculate smooth aiming
+            local targetPosition = target.Position
+            local cameraPosition = Camera.CFrame.Position
+            local direction = (targetPosition - cameraPosition).Unit
+            local smoothCFrame = CFrame.new(cameraPosition, cameraPosition + (direction * Settings.Smoothness))
+            
+            Camera.CFrame = Camera.CFrame:Lerp(smoothCFrame, 0.5)
         end
     end
-end)
 
-OrionLib:Init()
+    -- Update FOV Circle
+    if FOVCircle then
+        FOVCircle.Radius = Settings.FOV
+        FOVCircle.Visible = Settings.DrawFOV
+    end
+end)
