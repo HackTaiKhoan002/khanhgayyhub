@@ -1,83 +1,77 @@
 -- Load Kavo UI Library
-local success, KavoUI = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-end)
+local KavoUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = KavoUI.CreateLib("Aimbot Controller", "Serpent")
 
-if not success then
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Error",
-        Text = "Failed to load Kavo UI!",
-        Duration = 5
-    })
-    return
+-- Create toggle circle
+local Circle = Instance.new("ImageLabel")
+Circle.Name = "UICircle"
+Circle.Image = "rbxassetid://3570695787" -- Smooth circle image
+Circle.ImageColor3 = Color3.new(0, 0.8, 1)
+Circle.BackgroundTransparency = 1
+Circle.Size = UDim2.new(0, 40, 0, 40)
+Circle.Position = UDim2.new(1, -50, 1, -50) -- Bottom-right corner
+Circle.ZIndex = 999
+Circle.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- Toggle visibility function
+local function ToggleUI()
+    Window:ToggleUI()
+    Circle.Visible = not Circle.Visible
 end
 
-local Window = KavoUI.CreateLib("Aimbot Pro v2.0", "BloodTheme")
+-- Click detection
+local UIS = game:GetService("UserInputService")
+Circle.MouseButton1Click:Connect(ToggleUI)
 
--- Configuration
+-- Hover effects
+Circle.MouseEnter:Connect(function()
+    game:GetService("TweenService"):Create(
+        Circle,
+        TweenInfo.new(0.2),
+        {ImageTransparency = 0.2}
+    ):Play()
+end)
+
+Circle.MouseLeave:Connect(function()
+    game:GetService("TweenService"):Create(
+        Circle,
+        TweenInfo.new(0.2),
+        {ImageTransparency = 0}
+    ):Play()
+end)
+
+-- UI Configuration (same as previous script)
 local Settings = {
     Aimbot = false,
     TargetType = "Mobs",
-    AimPart = "HumanoidRootPart",
-    Smoothness = 1.5,
-    FOV = 250,
-    TeamCheck = true,
-    DrawFOV = false
+    AimPart = "HumanoidRootPart"
 }
 
--- UI Setup
-local MainTab = Window:NewTab("Main")
-local AimbotSection = MainTab:NewSection("Aimbot Settings")
+local MainTab = Window:NewTab("Controls")
+MainTab:NewSection("Aimbot Configuration")
 
--- Aimbot Toggle
-AimbotSection:NewToggle("Enable Aimbot", "Lock onto targets", function(State)
+MainTab:NewToggle("Enable Aimbot", "Toggles targeting system", function(State)
     Settings.Aimbot = State
 end)
 
--- Target Type Selector
-AimbotSection:NewDropdown("Target Type", "Choose what to target", {"Mobs", "Players"}, function(Value)
+MainTab:NewDropdown("Target Type", "Select what to aim at", {"Mobs", "Players"}, function(Value)
     Settings.TargetType = Value
 end)
 
--- Aim Part Selector
-AimbotSection:NewDropdown("Aim Part", "Select target body part", {"Head", "HumanoidRootPart"}, function(Value)
+MainTab:NewDropdown("Aim Part", "Select target body part", {"Head", "HumanoidRootPart"}, function(Value)
     Settings.AimPart = Value
 end)
 
--- Sliders
-AimbotSection:NewSlider("Smoothness", "Aim smoothness", 100, 1, function(Value)
-    Settings.Smoothness = Value / 20
+-- Keep the circle visible when UI is closed
+Window:OnClose(function()
+    Circle.Visible = true
 end)
 
-AimbotSection:NewSlider("FOV", "Targeting radius", 500, 50, function(Value)
-    Settings.FOV = Value
-end)
+-- Initial visibility setup
+Circle.Visible = true
+Window:HideUI() -- Start with UI hidden
 
--- Team Check
-AimbotSection:NewToggle("Team Check", "Ignore teammates", function(State)
-    Settings.TeamCheck = State
-end)
-
--- FOV Circle Visualization
-local FOVCircle
-AimbotSection:NewToggle("Show FOV", "Display targeting area", function(State)
-    Settings.DrawFOV = State
-    if State then
-        FOVCircle = Drawing.new("Circle")
-        FOVCircle.Visible = true
-        FOVCircle.Radius = Settings.FOV
-        FOVCircle.Color = Color3.new(1, 1, 1)
-        FOVCircle.Thickness = 2
-        FOVCircle.Position = workspace.CurrentCamera.ViewportSize / 2
-    else
-        if FOVCircle then
-            FOVCircle:Remove()
-            FOVCircle = nil
-        end
-    end
-end)
-
--- Aimbot Logic
+-- Rest of your aimbot logic here...
 local function GetClosestTarget()
     local closestTarget = nil
     local closestDistance = Settings.FOV
