@@ -1,7 +1,7 @@
 -- Load UI Library
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
 local Window = OrionLib:MakeWindow({
-    Name = "Auto Raid Pro v2.1",
+    Name = "Aimbot Pro v1.0",
     HidePremium = false,
     IntroEnabled = false,
     SaveConfig = false
@@ -9,106 +9,146 @@ local Window = OrionLib:MakeWindow({
 
 -- Configuration
 local Settings = {
-    AutoRaid = false,
-    SelectedRaid = "Flame",
-    AutoBuyChip = false,
-    RaidTypes = {"Flame", "Ice", "Dark", "Phoenix", "Dough", "Order"},
-    ChipNPCs = {
-        Basic = "Mysterious Scientist",
-        Advanced = "Sick Scientist",
-        Order = "Arlthmetic NPC"
-    }
+    AimbotEnabled = false,
+    TargetType = "Mobs", -- Mobs or Players
+    AimPart = "Head", -- Head, HumanoidRootPart, etc.
+    Smoothness = 50, -- Aimbot smoothness (higher = smoother)
+    FOV = 100, -- Field of View for targeting
+    TeamCheck = true -- Ignore teammates
 }
 
 -- UI Setup
 local MainTab = Window:MakeTab({
-    Name = "Core Features",
+    Name = "Aimbot Settings",
     Icon = "rbxassetid://4483345998"
 })
 
--- Raid Selector
-MainTab:AddDropdown({
-    Name = "Select Raid Type",
-    Default = Settings.SelectedRaid,
-    Options = Settings.RaidTypes,
-    Callback = function(Value)
-        Settings.SelectedRaid = Value
-    end
-})
-
--- Toggle Auto-Raid
+-- Toggle Aimbot
 MainTab:AddToggle({
-    Name = "Auto Start Raid",
+    Name = "Enable Aimbot",
     Default = false,
     Callback = function(State)
-        Settings.AutoRaid = State
-        if State then
-            StartAutoRaid()
-        end
+        Settings.AimbotEnabled = State
     end
 })
 
--- Manual Chip Purchase Button
-MainTab:AddButton({
-    Name = "Buy Raid Chip",
-    Callback = function()
-        BuyRaidChip(Settings.SelectedRaid)
+-- Target Type Selector
+MainTab:AddDropdown({
+    Name = "Target Type",
+    Default = Settings.TargetType,
+    Options = {"Mobs", "Players"},
+    Callback = function(Value)
+        Settings.TargetType = Value
     end
 })
 
--- Advanced Settings Tab
-local AdvTab = Window:MakeTab({
-    Name = "Configuration",
-    Icon = "rbxassetid://4483345998"
+-- Aim Part Selector
+MainTab:AddDropdown({
+    Name = "Aim Part",
+    Default = Settings.AimPart,
+    Options = {"Head", "HumanoidRootPart"},
+    Callback = function(Value)
+        Settings.AimPart = Value
+    end
 })
 
-AdvTab:AddToggle({
-    Name = "Auto-Buy Chip (Experimental)",
-    Default = false,
+-- Smoothness Slider
+MainTab:AddSlider({
+    Name = "Smoothness",
+    Min = 1,
+    Max = 100,
+    Default = Settings.Smoothness,
+    Callback = function(Value)
+        Settings.Smoothness = Value
+    end
+})
+
+-- FOV Slider
+MainTab:AddSlider({
+    Name = "FOV",
+    Min = 50,
+    Max = 500,
+    Default = Settings.FOV,
+    Callback = function(Value)
+        Settings.FOV = Value
+    end
+})
+
+-- Team Check Toggle
+MainTab:AddToggle({
+    Name = "Ignore Teammates",
+    Default = true,
     Callback = function(State)
-        Settings.AutoBuyChip = State
+        Settings.TeamCheck = State
     end
 })
 
--- Core Functions
-function BuyRaidChip(RaidType)
-    local NPC = Settings.ChipNPCs.Basic
-    local Cost = 100000
-    
-    if RaidType == "Phoenix" or RaidType == "Dough" then
-        NPC = Settings.ChipNPCs.Advanced
-        Cost = 1000000
-    elseif RaidType == "Order" then
-        NPC = Settings.ChipNPCs.Order
-        Cost = 1000
-    end
-    
-    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("Raids", true, RaidType)
-    -- Teleport to NPC logic (omitted for brevity) :cite[2]:cite[3]
-end
+-- Aimbot Logic
+local function GetClosestTarget()
+    local closestTarget = nil
+    local closestDistance = Settings.FOV
+    local LocalPlayer = game.Players.LocalPlayer
+    local LocalCharacter = LocalPlayer.Character
+    local LocalRoot = LocalCharacter and LocalCharacter:FindFirstChild("HumanoidRootPart")
 
-function StartAutoRaid()
-    spawn(function()
-        while Settings.AutoRaid do
-            -- Raid Start Logic
-            local Portal = workspace.Map:FindFirstChild("RaidPortal") or workspace.Map:FindFirstChild("Secret Laboratory")
-            if Portal then
-                game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = Portal.CFrame
-                task.wait(2)
-                fireclickdetector(Portal:FindFirstChild("ClickDetector"))
-            end
-            
-            -- Combat Automation
-            for _, enemy in pairs(workspace.Enemies:GetChildren()) do
-                if enemy:FindFirstChild("Humanoid") then
-                    -- Optimized attack pattern :cite[3]:cite[7]
-                    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("Attack", "HeavyAttack")
-                    task.wait(0.15)
+    if not LocalRoot then return nil end
+
+    -- Target Mobs
+    if Settings.TargetType == "Mobs" then
+        for _, mob in pairs(workspace.Enemies:GetChildren()) do
+            if mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
+                local mobRoot = mob:FindFirstChild("HumanoidRootPart")
+                if mobRoot then
+                    local distance = (LocalRoot.Position - mobRoot.Position).Magnitude
+                    if distance < closestDistance then
+                        closestTarget = mobRoot
+                        closestDistance = distance
+                    end
                 end
             end
-            task.wait(5)
         end
-    end)
+    end
+
+    -- Target Players
+    if Settings.TargetType == "Players" then
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                if Settings.TeamCheck and player.Team == LocalPlayer.Team then
+                    continue
+                end
+                local playerRoot = player.Character.HumanoidRootPart
+                local distance = (LocalRoot.Position - playerRoot.Position).Magnitude
+                if distance < closestDistance then
+                    closestTarget = playerRoot
+                    closestDistance = distance
+                end
+            end
+        end
+    end
+
+    return closestTarget
 end
+
+-- Aimbot Execution
+game:GetService("RunService").RenderStepped:Connect(function()
+    if Settings.AimbotEnabled then
+        local target = GetClosestTarget()
+        if target then
+            local LocalPlayer = game.Players.LocalPlayer
+            local LocalCharacter = LocalPlayer.Character
+            local LocalRoot = LocalCharacter and LocalCharacter:FindFirstChild("HumanoidRootPart")
+            local Camera = workspace.CurrentCamera
+
+            if LocalRoot and Camera then
+                local targetPosition = target.Position
+                local cameraPosition = Camera.CFrame.Position
+                local direction = (targetPosition - cameraPosition).Unit
+                local smoothness = Settings.Smoothness / 100
+
+                Camera.CFrame = CFrame.new(cameraPosition, cameraPosition + (direction * smoothness))
+            end
+        end
+    end
+end)
 
 OrionLib:Init()
