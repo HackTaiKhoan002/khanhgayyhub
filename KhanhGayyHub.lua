@@ -20,9 +20,9 @@ local Settings = {
     TargetType = "Mobs",
     AimPart = "HumanoidRootPart",
     Smoothness = 1.5,
-    FOV = 250,
+    FOV = 500,
     TeamCheck = true,
-    DrawFOV = false
+    DrawFOV = true
 }
 
 -- UI Setup
